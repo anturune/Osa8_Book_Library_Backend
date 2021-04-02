@@ -91,6 +91,7 @@ const typeDefs = gql`
 type Author {
     name: String!
     born: Int!
+    bookCount: Int!
     id: ID!
 }
 
@@ -106,14 +107,29 @@ type Author {
       authorCount: Int!
       bookCount: Int!
       allBooks: [Book!]!
-       }
+      allAuthors: [Author!]!
+}
 `
 
 const resolvers = {
     Query: {
         authorCount: () => authors.length,
         bookCount: () => books.length,
-        allBooks: () => books
+        allBooks: () => books,
+        allAuthors: () => authors
+    },
+    //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
+    //Niin luodaan oma kenttä resolverissa ja ei tyydytä by default resolveriin, joka ottaa
+    //mukaan pelkästään author-taulukon kentät
+    //HUOM! Tässä filteröidään pois ne kirjat, jotka eivät Authorile kuulu
+    Author: {
+        bookCount: (root) => {
+            return (
+                books.filter(b => b.author === root.name)
+                    .length)
+
+
+        }
     }
 }
 //"typeDefs" sisältää sovelluksen käyttämän GraphQL-skeeman
