@@ -106,16 +106,27 @@ type Author {
   type Query {
       authorCount: Int!
       bookCount: Int!
-      allBooks: [Book!]!
+      allBooks(author: String!): [Book!]!
       allAuthors: [Author!]!
 }
 `
-
+console.log('ALL BOOKS BY Author', books.filter(b => b.author === 'Robert Martin'))
 const resolvers = {
     Query: {
         authorCount: () => authors.length,
         bookCount: () => books.length,
-        allBooks: () => books,
+        //Argumenttia hyödynnetään eli http://localhost:4000/graphql käyttöliittymässä
+        //voidaan hakea halutulla authorin nimellä authorin kaikki kirjat. 
+        //ks.yllä " allBooks(author: String!): [Book!]!"
+        //HUOM! Haku tehdään näin http://localhost:4000/graphql käyttöliittymässä
+            /*
+            query {
+                allBooks(author: "Robert Martin") {
+                title
+                }
+            }
+            */
+        allBooks: (root, args) => books.filter(b => b.author === args.author),
         allAuthors: () => authors
     },
     //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
