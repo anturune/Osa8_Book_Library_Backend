@@ -21,10 +21,12 @@ let authors = [
     {
         name: 'Joshua Kerievsky', // birthyear not known
         id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
+        born: 1234
     },
     {
         name: 'Sandi Metz', // birthyear not known
         id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
+        born: 1
     },
 ]
 
@@ -90,7 +92,7 @@ type Author {
     name: String!
     born: Int!
     id: ID!
-  }
+}
 
   type Book {
     title: String!
@@ -103,14 +105,15 @@ type Author {
   type Query {
       authorCount: Int!
       bookCount: Int!
+      allBooks: [Book!]!
        }
 `
 
 const resolvers = {
     Query: {
         authorCount: () => authors.length,
-        bookCount: () => books.length
-
+        bookCount: () => books.length,
+        allBooks: () => books
     }
 }
 //"typeDefs" sisältää sovelluksen käyttämän GraphQL-skeeman
