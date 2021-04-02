@@ -1,0 +1,20 @@
+{
+  "name": "library-backend-osa8",
+  "version": "1.0.0",
+  "description": "library",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Antti Turunen",
+  "license": "ISC",
+  "dependencies": {
+    "apollo-server": "^2.22.2",
+    "graphql": "^15.5.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.7"
+  }
+}
