@@ -141,6 +141,64 @@ const bookYksi = {
 }
 
 console.log('ADD BOOK', books.concat(bookYksi))
+/*
+ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:
+        Kirjoita haut graphql käyttöliittymään:
+
+        1) Kirjailijan kirjat:
+            query {
+                allBooks(author: "Martin Fowler") {
+                title
+                }
+            }
+        2) Kaikki kirjat ja kirjailijat:
+            query {
+                allBooks { 
+                    title 
+                    author
+                    published 
+                    genres
+                }
+            }
+
+        3) Kaikki kirjailijat (HUOM! bookCount täytyy tehdä erikseen, koska ei ole Author olion attribuutti
+            ks. "resolvereista" "Author"-kohta):
+            query {
+                allAuthors {
+                    name
+                    bookCount
+                }
+            }
+
+        4) Genren kirjat:
+            query {
+                allBooks(genre: "refactoring") {
+                    title
+                    author
+                }
+            }
+
+        5) Kirjan lisäys:
+            mutation {
+                addBook(
+                    title: "NoSQL Distilled",
+                    author: "Martin Fowler",
+                    published: 2012,
+                    genres: ["database", "nosql"]
+                ) {
+                    title,
+                    author
+                }
+            }
+
+        6) Kirjailijan syntymävuoden päivitys:
+            mutation {
+                editAuthor(name: "Reijo Mäki", setBornTo: 1958) {
+                    name
+                    born
+                }
+            }
+*/
 
 //"const resolvers = {" --> määrittelee miten GraphQL-kyselyihin vastataan
 const resolvers = {
@@ -161,13 +219,15 @@ const resolvers = {
         //ks.yllä " allBooks(author: String!): [Book!]!"
         //HUOM! Haku tehdään näin http://localhost:4000/graphql käyttöliittymässä
         /*
-        Kirjoita tämä graphql käyttöliittymään:
-        query {
-            allBooks(author: "Martin Fowler") {
-            title
+          Kirjailijan kirjat:
+            query {
+                allBooks(author: "Martin Fowler") {
+                title
+                }
             }
-        }
+
         */
+
         allBooks: (root, args) => {
             if (args.author && args.genre) {
                 const authorsBook = books.filter(b => b.author === args.author)
@@ -178,6 +238,7 @@ const resolvers = {
             } else if (args.genre) {
                 return books.filter(b => b.genres.find(g => g === args.genre))
             }
+            return books
         },
         allAuthors: () => authors
     },
