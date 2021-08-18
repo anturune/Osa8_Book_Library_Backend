@@ -1,7 +1,7 @@
 
 
 const { ApolloServer, gql } = require('apollo-server')
-//Mutaatioita varten ID-generaattori, kun luodaan uusia objekteja
+//Mutaatioita varten ID-generaattori, kun luodaan uusia objekteja 
 const { v1: uuid } = require('uuid')
 
 
@@ -229,6 +229,7 @@ const resolvers = {
         */
 
         allBooks: (root, args) => {
+            //console.log('TULEEKO KIRJAHAUSTA JOTAIN BACKENDISTÄ')
             if (args.author && args.genre) {
                 const authorsBook = books.filter(b => b.author === args.author)
                 return authorsBook.filter(b => b.genres.find(g => g === args.genre))
@@ -241,6 +242,7 @@ const resolvers = {
             return books
         },
         allAuthors: () => authors
+        
     },
     //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
     //Niin luodaan oma kenttä resolverissa ja ei tyydytä by default resolveriin, joka ottaa
@@ -259,6 +261,7 @@ const resolvers = {
     Mutation: {
         addBook: (root, args) => {
             //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
+            console.log('TULIKO BACKENDIIN JA KIRJAN LISÄYKSEEN', args.author)
             if (!authors.find(a => a.name === args.author)) {
                 const author = {
                     name: args.author,
