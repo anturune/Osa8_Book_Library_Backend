@@ -1,6 +1,25 @@
 
 
 const { ApolloServer, gql } = require('apollo-server')
+//Mongoa varten
+const mongoose = require('mongoose')
+//Importataan author.js ja book.js käyttöön
+//HUOM! kun yhteys MongoDB onnistuu, niin samalla näiden avulla luodaan authors ja books collectionit
+const Author = require('./models/author')
+const Book = require('./models/book')
+//MongoDB polku
+const MONGODB_URI = 'mongodb+srv://fullstack:fullstack@cluster0.fch4z.mongodb.net/fullstack-library-app?retryWrites=true&w=majority'
+//CMD:hen tulostus, että  yhteydenmuodostus aloitettu 
+console.log('connecting to', MONGODB_URI)
+//CMD:hen tulostus, miten yhteydenmuodostus onnistui
+mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false, useCreateIndex: true })
+    .then(() => {
+        console.log('connected to MongoDB')
+    })
+    .catch((error) => {
+        console.log('error connection to MongoDB:', error.message)
+    })
+
 //Mutaatioita varten ID-generaattori, kun luodaan uusia objekteja 
 const { v1: uuid } = require('uuid')
 
@@ -90,6 +109,8 @@ let books = [
     },
 ]
 //"const typeDefs = gql`" --> sisältää sovelluksen käyttämän GraphQL-skeeman
+//HUOM! Mongon vuoksi muutettu Book:a siten, että "author: String!" muutettu "author: Author!"
+//jotta kirja sisältää pelkän kirjailijan nimen sijaan kirjailijan kaikki tiedot
 const typeDefs = gql`
 type Author {
     name: String!
@@ -101,7 +122,7 @@ type Author {
   type Book {
     title: String!
     published: Int!
-    author: String!
+    author: Author!
     genres: [String]
     id: ID!
   }
@@ -117,7 +138,7 @@ type Mutation{
     addBook(
         title: String!
         published: Int!
-        author: String!
+        author: String
         genres: [String]        
     ): Book
     editAuthor(
@@ -127,9 +148,10 @@ type Mutation{
 }
 
 `
+/*
 //tsekataan, että tulostuuko cmd:hen kirjat halutulla ehdolla
-console.log('ALL BOOKS BY Author', books.filter(b => b.genres.find(g => g === 'refactoring')))
-console.log('ALL BOOKS', books)
+//console.log('ALL BOOKS BY Author', books.filter(b => b.genres.find(g => g === 'refactoring')))
+//console.log('ALL BOOKS', books)
 
 const bookYksi = {
     title: 'titteli',
@@ -141,9 +163,10 @@ const bookYksi = {
 }
 
 console.log('ADD BOOK', books.concat(bookYksi))
+*/
 /*
 ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:
-        Kirjoita haut graphql käyttöliittymään:
+        Kirjoita haut graphql käyttöliittymään http://localhost:4000/graphql:
 
         1) Kirjailijan kirjat:
             query {
@@ -242,7 +265,7 @@ const resolvers = {
             return books
         },
         allAuthors: () => authors
-        
+
     },
     //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
     //Niin luodaan oma kenttä resolverissa ja ei tyydytä by default resolveriin, joka ottaa
@@ -257,8 +280,72 @@ const resolvers = {
 
         }
     }
+
     ,
+
     Mutation: {
+        addBook: async (root, args) => {
+            //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
+           
+            //Otetaan talteen kirjoittajan nimi eli authori tietokannasta
+            //Palauttaa taulukon, jossa authori on indeksissä 0
+            //Käytetän "let" -tyyppiä, jotta voidaan vaihtaa arvoa
+            let authorInQuestion = await Author.find({ name: args.author })
+
+            /*
+            console.log('SYÖTETTY AUTHORI', authorInQuestion)
+            console.log('SYÖTETTY AUTHORIN id', authorInQuestion[0])
+            console.log('SYÖTETTY AUTHORI ARGSISSA', args.author)
+            */
+
+            //Jos authoria ei kannassa, niin luodaan uusi author ennen kirjan luomista
+            if (authorInQuestion[0] === undefined) {
+                console.log('EI AUTHORIA KANNASSA, luodaan uusi', args.author)
+                //Luodaan skeeman mukainen Author olio
+                const newAuthor = new Author({
+                    name: args.author,
+                    born: 1
+                })
+                //authors = authors.concat(newAuthor)
+
+                //console.log('AUTHOR IN QUESTION UUDEN AUTHORIN LUONNISSA', authorInQuestion)
+
+                //Talletetaan uusi käyttäjä tietokantaan
+                try {
+                    await newAuthor.save()
+                } catch (error) {
+                    throw new UserInputError(error.message, {
+                        invalidArgs: args,
+                    })
+                }
+
+            }
+
+            //console.log('YRITTÄÄKÖ TÄNNE', await Author.find({ name: args.author }))
+
+            //Haetaan tietokantaan tallennettu "Author" uudelleen, kirjan luomista varten
+            authorInQuestion = await Author.find({ name: args.author })
+            //Luodaan uusi kirja ja skeeman mukaisesti "author" -kentälle annetaan
+            //Pelkkä tietokannan id-numero
+            const book = new Book({ ...args, author: authorInQuestion[0]._id })
+            console.log('Kirja', book)
+            console.log('OLIKO AUTHORI', authorInQuestion[0]._id)
+            //Talletetaan kirja kantaan
+            try {
+                await book.save()
+            } catch (error) {
+                throw new UserInputError(error.message, {
+                    invalidArgs: args,
+                })
+            }
+
+        }
+
+
+        //return book.save()
+
+
+        /*
         addBook: (root, args) => {
             //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
             console.log('TULIKO BACKENDIIN JA KIRJAN LISÄYKSEEN', args.author)
@@ -272,24 +359,14 @@ const resolvers = {
                 console.log('MENIKÖ NIMI SISÄÄN', args.author)
                 console.log('MENIKÖ NIMI SISÄÄN', author)
             }
-
+     
             const book = { ...args, id: uuid() }
             books = books.concat(book)
             console.log('Kirja', book)
             return book
         }
-        /* Kirja lisätään näin, kirjoittamalla tämä komento graphQl konsoliin
-        mutation {
-            addBook(
-                title: "Pimeyden tango",
-                author: "Reijo Mäki",
-                published: 1997,
-                genres: ["crime"]
-            ) {
-                title,
-                author
-            }
-    }*/
+        */
+
         ,
         editAuthor: (root, args) => {
             console.log('Tuliko editAuthoriin', args.name)
