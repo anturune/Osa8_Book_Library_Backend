@@ -350,11 +350,21 @@ const resolvers = {
     //mukaan pelkästään author-taulukon kentät
     //HUOM! Tässä filteröidään pois ne kirjat, jotka eivät Authorile kuulu
     Author: {
-        bookCount: (root) => {
+        bookCount: async (root) => {
+            //Käytetään "findOne"-syntaxia, jotta tulee authori oliona
+            //eikä arrayna
+            const authorInQuestion = await Author.findOne({ name: root.name })
+            //console.log('Author ID', authorInQuestion._id)
+            
+            //Haetaan kannasta Authorin kaikki kirjat
+            const allBooks = await Book.find({ author: { $in: authorInQuestion } })
+            //console.log('BOOKCOUNT', allBooks.length)
+            return (allBooks.length)
+            /*        
             return (
                 books.filter(b => b.author === root.name)
                     .length)
-
+                */
 
         }
     }
@@ -452,7 +462,7 @@ const resolvers = {
             //Kun haetaan kannasta "findOne", niin ei tarvitse huolehtia indexsistä
             //Jos haettaisiin vain "find", niin tulisi arrayna
             const author = await Author.findOne({ name: args.name })
-           
+
             console.log('Tuliko editAuthoriin', args.name, author.born)
             //const author = authors.find(a => a.name === args.name)
             if (!author) {
@@ -467,7 +477,7 @@ const resolvers = {
             //const updatedAuthor = { ...author, born: args.setBornTo }
             //authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
 
-            
+
             try {
                 await author.save()
             } catch (error) {
@@ -475,7 +485,7 @@ const resolvers = {
                     invalidArgs: args,
                 })
             }
-            
+
             return author
             //return updatedAuthor
         }
