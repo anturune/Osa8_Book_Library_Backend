@@ -221,22 +221,66 @@ ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:
                     born
                 }
             }
+
+        --------------KYSELYJÄ KUN MONGO DB KÄYTÖSSÄ----------------
+        91) Kirjan lisäys, kun myös Author tietokannassa
+            mutation {
+                    addBook(
+                        title: "Saaagaaass",
+                        author:"PAtu Katunen",
+                        published: 2012,
+                        genres: ["database", "nosql"]
+                    ) {
+                        title,
+                        published,
+                        genres,
+                        author{
+                        name,
+                            born,
+                            bookCount}
+                    }
+                }
+
+        92) Haetaan kaikki kirjat kannasta
+            query {
+                    simplyAllBooks { 
+                        title 
+                        published
+                        genres
+                    }
+                }
+
+        93) Haetaan authoreiden ja kirjailijoiden määrä
+            query {
+                authorCount
+                bookCount
+        }
+        94) Haetaan kaikki Authorit
+            query {
+                allAuthors{
+                    name,
+                    born}
+        }
 */
 
 //"const resolvers = {" --> määrittelee miten GraphQL-kyselyihin vastataan
 const resolvers = {
     Query: {
         //Ks. const typeDefs = gql` ja sieltä type Query
-        authorCount: () => authors.length,
-        bookCount: () => books.length,
-        simplyAllBooks: () => books,
-        /*Haetaan kaikki krijat-->kirjoita tämä graphql selaimeen ja paina "play"-nappia
-        query {
-            simplyAllBooks{ 
-                title
-            }
+        authorCount: async () => {
+            return (await Author.find({})).length
         }
-        */
+        ,
+        bookCount: async () => {
+            return (await Book.find({})).length
+        },
+
+        //Kaikkien kirjojen palauttamiseen Mongo DB:stä
+        simplyAllBooks: async () => {
+            return (await Book.find({}))
+        }
+        ,
+
         //Argumenttia hyödynnetään eli http://localhost:4000/graphql käyttöliittymässä
         //voidaan hakea halutulla authorin nimellä authorin kaikki kirjat. 
         //ks.yllä " allBooks(author: String!): [Book!]!"
@@ -251,20 +295,54 @@ const resolvers = {
 
         */
 
-        allBooks: (root, args) => {
-            //console.log('TULEEKO KIRJAHAUSTA JOTAIN BACKENDISTÄ')
+
+        allBooks: async (root, args) => {
+
+            //Haetaan hakua vastaava author kannasta
+            const authorInQuestion = await Author.find({ name: args.author })
+
+            //Jos on annettu sekä authorin, että genren arvot niin tämä
             if (args.author && args.genre) {
-                const authorsBook = books.filter(b => b.author === args.author)
-                return authorsBook.filter(b => b.genres.find(g => g === args.genre))
+                //Haetaan kaikki Authorin kirjat
+                const authorinKirjat = await Book.find({ author: { $in: authorInQuestion } })
+                //Filteröidään kirjat joila ei annettua genreä
+                const authorinKirjatGenreilla = authorinKirjat.filter(b => b.genres.find(g => g === args.genre))
+                //console.log('AUTHORIN KIRJAT Genreilla', authorinKirjatGenreilla)
+                /*TÄTÄ EN SAANUT TOIMIMAAN
+                const authorinKirjatJaHalututGenret = await Book
+                    .find(
+                        {
+                            author: { $in: authorInQuestion },
+                            genres: { $in: [args.genre] }
+                        }
+                    )
+                */
+                return authorinKirjatGenreilla
+                //const authorsBook = books.filter(b => b.author === args.author)
+                //return authorsBook.filter(b => b.genres.find(g => g === args.genre))
             }
+
+            //Jos annettu pelkästään authorin arvo, niin tämä
             if (args.author) {
-                return books.filter(b => b.author === args.author)
+                //Haetaan kaikki kirjat, jotka sisältävät Authorin ID:n
+                //Hyödynnettu $in -syntaksia ks. https://docs.mongodb.com/manual/reference/operator/query/in/
+                const authorinKirjat = await Book.find({ author: { $in: authorInQuestion } })
+                //console.log('AUTHORIN KIRJAT', authorinKirjat)
+                return authorinKirjat
+
+                //Jos annettu pelkkä genre, niin sitten tämä
             } else if (args.genre) {
-                return books.filter(b => b.genres.find(g => g === args.genre))
+                //Haetaan kaikki Genren kirjat
+                const genrenKirjat = await Book.find({ genres: { $in: [args.genre] } })
+                //console.log('GENREN KIRJAT', genrenKirjat)
+                return genrenKirjat
+                //return books.filter(b => b.genres.find(g => g === args.genre))
             }
-            return books
+            return await Book.find({})
         },
-        allAuthors: () => authors
+        allAuthors: async () => {
+            return (await Author.find({}))
+        }
 
     },
     //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
@@ -286,7 +364,7 @@ const resolvers = {
     Mutation: {
         addBook: async (root, args) => {
             //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
-           
+
             //Otetaan talteen kirjoittajan nimi eli authori tietokannasta
             //Palauttaa taulukon, jossa authori on indeksissä 0
             //Käytetän "let" -tyyppiä, jotta voidaan vaihtaa arvoa
@@ -368,21 +446,42 @@ const resolvers = {
         */
 
         ,
-        editAuthor: (root, args) => {
-            console.log('Tuliko editAuthoriin', args.name)
-            const author = authors.find(a => a.name === args.name)
+        //Syntymävuoden päivittämiseen
+        editAuthor: async (root, args) => {
+
+            //Kun haetaan kannasta "findOne", niin ei tarvitse huolehtia indexsistä
+            //Jos haettaisiin vain "find", niin tulisi arrayna
+            const author = await Author.findOne({ name: args.name })
+           
+            console.log('Tuliko editAuthoriin', args.name, author.born)
+            //const author = authors.find(a => a.name === args.name)
             if (!author) {
                 return null
             }
             console.log('Lähtikö muuttamaan editAuthorissa setBornTo arvolla', args.setBornTo)
             //HUOM! Skeemassa pitää olla "setBornTo", koska konsolesta syötetään sen nimisellä parametrilla
             //uusi syntymävuosi
-            const updatedAuthor = { ...author, born: args.setBornTo }
-            authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
-            return updatedAuthor
+            //Päivitetään syntymävuosi
+            author.born = args.setBornTo
+            console.log('Editoituiko authori', author)
+            //const updatedAuthor = { ...author, born: args.setBornTo }
+            //authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
+
+            
+            try {
+                await author.save()
+            } catch (error) {
+                throw new UserInputError(error.message, {
+                    invalidArgs: args,
+                })
+            }
+            
+            return author
+            //return updatedAuthor
         }
     }
 }
+
 //"typeDefs" sisältää sovelluksen käyttämän GraphQL-skeeman
 //"resolvers" määrittelee miten GraphQL-kyselyihin vastataan
 const server = new ApolloServer({
