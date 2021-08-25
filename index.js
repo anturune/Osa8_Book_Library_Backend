@@ -1,12 +1,16 @@
-
-
+//Apollo server käyttöön
 const { ApolloServer, gql } = require('apollo-server')
 //Mongoa varten
 const mongoose = require('mongoose')
+//Yksilöllistä Tokenia varten, kirjautumiseen
+const jwt = require('jsonwebtoken')
 //Importataan author.js ja book.js käyttöön
 //HUOM! kun yhteys MongoDB onnistuu, niin samalla näiden avulla luodaan authors ja books collectionit
 const Author = require('./models/author')
 const Book = require('./models/book')
+const User = require('./models/user')
+
+const JWT_SECRET = 'NEED_HERE_A_SECRET_KEY'
 //MongoDB polku
 const MONGODB_URI = 'mongodb+srv://fullstack:fullstack@cluster0.fch4z.mongodb.net/fullstack-library-app?retryWrites=true&w=majority'
 //CMD:hen tulostus, että  yhteydenmuodostus aloitettu 
@@ -20,7 +24,8 @@ mongoose.connect(MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true,
         console.log('error connection to MongoDB:', error.message)
     })
 
-//Mutaatioita varten ID-generaattori, kun luodaan uusia objekteja 
+//Mutaatioita varten ID-generaattori, kun luodaan uusia objekteja
+//HUOM! Ei tarvita Mongoa käytettäessä
 const { v1: uuid } = require('uuid')
 
 
@@ -127,12 +132,23 @@ type Author {
     id: ID!
   }
 
+  type User {
+    username: String!
+    favoriteGenre: String!
+    id: ID!
+  }
+  
+  type Token {
+    value: String!
+  }
+
   type Query {
       authorCount: Int!
       bookCount: Int!
       allBooks(author: String ,genre: String): [Book!]!
       allAuthors: [Author!]!
       simplyAllBooks:[Book!]!
+      me: User
 }
 type Mutation{
     addBook(
@@ -141,10 +157,21 @@ type Mutation{
         author: String
         genres: [String]        
     ): Book
+
     editAuthor(
         name: String!
         setBornTo: Int!
       ): Author
+
+    createUser(
+        username: String!
+        favoriteGenre: String!
+      ): User
+
+    login(
+        username: String!
+        password: String!
+      ): Token
 }
 
 `
@@ -165,7 +192,7 @@ const bookYksi = {
 console.log('ADD BOOK', books.concat(bookYksi))
 */
 /*
-ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:
+-------------ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:-----------------
         Kirjoita haut graphql käyttöliittymään http://localhost:4000/graphql:
 
         1) Kirjailijan kirjat:
@@ -261,6 +288,61 @@ ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:
                     name,
                     born}
         }
+
+        --------------------------KIRJAUTUMISEEN LIITTYVÄT KYSELYT/MUTAATIOT------------------------------------
+        
+        95) Uuden käyttäjän luominen HUOM! favoriteGenre on pakollinen kenttä skeemassa
+            mutation {
+                createUser(
+                    username:"asturune"
+                    favoriteGenre:"nosql"){
+                            username,
+                            favoriteGenre,
+                            id                        
+                        }
+                    }
+
+        96) Loggautuminen. "value" palauttaa tokenin.
+            mutation {
+                login(
+                    username:"asturune"
+                    password:"secret"){
+                        value}
+        }
+        97) Loggautuneen käyttäjän hakeminen
+            query {
+                    me{
+                      username,
+                      favoriteGenre
+                        }
+                    }
+
+        98) Kirjan lisääminen. Lisää http://localhost:4000/graphql alle HTTP HEADERS kohtaan
+            Token, joka on saatu kohdasta 96) eli loggautumisen yhteydessä.
+            Kirjoita token näin {"Authorization": "bearer <token tähän, joka saatu loggautumisen yhteydessä>"}
+            Esimerkki token: {"Authorization": "bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c"}
+            HUOM! Edellyttää että jsonwebtoken-kirjasto on asennettu "npm install jsonwebtoken"
+            mutation {
+                addBook(
+                    title: "Loggaaminenkokinkokin",
+                    author:"PAtu Katunen",
+                    published: 2012,
+                    genres: ["database", "nosql"]) {
+                        title,
+                        published,
+                        genres
+                        }
+                    }
+        
+        99) Authorin muokkaaminen. HUOM! muista token http://localhost:4000/graphql alle HTTP HEADERS kohtaan
+            ja ota token login -mutaation avulla
+            mutation {
+                editAuthor(name: "Atu Atunen", setBornTo: 8888) {
+                    name
+                    born
+                }
+            }
+        
 */
 
 //"const resolvers = {" --> määrittelee miten GraphQL-kyselyihin vastataan
@@ -317,6 +399,7 @@ const resolvers = {
                         }
                     )
                 */
+                console.log('authorinKirjatGenreilla', authorinKirjatGenreilla)
                 return authorinKirjatGenreilla
                 //const authorsBook = books.filter(b => b.author === args.author)
                 //return authorsBook.filter(b => b.genres.find(g => g === args.genre))
@@ -338,11 +421,19 @@ const resolvers = {
                 return genrenKirjat
                 //return books.filter(b => b.genres.find(g => g === args.genre))
             }
+            //console.log('ALL BOOKS', await Book.find({}))
+            //Jos ei ole annettu genreä eikä authoria, niin palautetaan kaikki kirjat
             return await Book.find({})
         },
         allAuthors: async () => {
             return (await Author.find({}))
+        },
+        //Kirjautumista varten
+        //HUOM! context
+        me: (root, args, context) => {
+            return context.currentUser
         }
+
 
     },
     //Koska Authorilla ei ole omassa alkuperäisessä taulukossa kenttää bookCount
@@ -355,7 +446,7 @@ const resolvers = {
             //eikä arrayna
             const authorInQuestion = await Author.findOne({ name: root.name })
             //console.log('Author ID', authorInQuestion._id)
-            
+
             //Haetaan kannasta Authorin kaikki kirjat
             const allBooks = await Book.find({ author: { $in: authorInQuestion } })
             //console.log('BOOKCOUNT', allBooks.length)
@@ -368,13 +459,32 @@ const resolvers = {
 
         }
     }
+    ,
+    //Koska kirjan skeemaan määritelty "author:Author!", ja kirjan tiedoissa
+    //referoidaan pelkästään Authorin ID:llä, niin authorin tiedot pitää hakea kannasta
+    //erikseen, jotta kyselyt authorin osalta toimivat oikein
+    Book: {
+        author: async (root) => {
+            console.log('ROOT', (await Author.findOne({ _id: root.author })).name)
+            return {
+                name: (await Author.findOne({ _id: root.author })).name
+            }
+        }
+    }
 
     ,
 
     Mutation: {
-        addBook: async (root, args) => {
-            //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
+        //context tarvitaan, koska halutaan, että vain kirjautunut käyttäjä voi lisätä kirjan
+        addBook: async (root, args, context) => {
 
+            //Tarkastamaan, onko käyttäjä kirjautunut
+            const currentUser = context.currentUser
+            console.log('CURRENT USER', currentUser)
+            if (!currentUser) {
+                throw new AuthenticationError("not authenticated")
+            }
+            //Jos kirjailijaa ei ole, niin lisätään authors -taulukkoon
             //Otetaan talteen kirjoittajan nimi eli authori tietokannasta
             //Palauttaa taulukon, jossa authori on indeksissä 0
             //Käytetän "let" -tyyppiä, jotta voidaan vaihtaa arvoa
@@ -426,6 +536,7 @@ const resolvers = {
                     invalidArgs: args,
                 })
             }
+            return book
 
         }
 
@@ -457,7 +568,14 @@ const resolvers = {
 
         ,
         //Syntymävuoden päivittämiseen
-        editAuthor: async (root, args) => {
+        editAuthor: async (root, args, context) => {
+
+            //Tarkastamaan, onko käyttäjä kirjautunut
+            const currentUser = context.currentUser
+            console.log('CURRENT USER', currentUser)
+            if (!currentUser) {
+                throw new AuthenticationError("not authenticated")
+            }
 
             //Kun haetaan kannasta "findOne", niin ei tarvitse huolehtia indexsistä
             //Jos haettaisiin vain "find", niin tulisi arrayna
@@ -488,15 +606,60 @@ const resolvers = {
 
             return author
             //return updatedAuthor
+        },
+        //Kirjautumista varten userin luominen ja login
+        createUser: (root, args) => {
+
+            //Luodaan uusi käyttäjä skeeman mukaisesti.
+            //HUOM! "favoriteGenre" on pakollinen kenttä
+            console.log('USERIN TIEDOT', args.username, args.favoriteGenre)
+            const user = new User({ username: args.username, favoriteGenre: args.favoriteGenre })
+
+            return user.save()
+                .catch(error => {
+                    throw new UserInputError(error.message, {
+                        invalidArgs: args,
+                    })
+                })
+        },
+        login: async (root, args) => {
+            const user = await User.findOne({ username: args.username })
+
+            if (!user || args.password !== 'secret') {
+                throw new UserInputError("wrong credentials")
+            }
+
+            const userForToken = {
+                username: user.username,
+                id: user._id,
+            }
+
+            return { value: jwt.sign(userForToken, JWT_SECRET) }
         }
     }
 }
 
 //"typeDefs" sisältää sovelluksen käyttämän GraphQL-skeeman
 //"resolvers" määrittelee miten GraphQL-kyselyihin vastataan
+//Contextin palauttama olio annetaan kaikille resolvereille kolmantena parametrina, 
+//context on siis oikea paikka tehdä asioita, jotka ovat useille resolvereille yhteistä, 
+//kuten pyyntöön liittyvän käyttäjän tunnistaminen
 const server = new ApolloServer({
     typeDefs,
     resolvers,
+    //Context tarvitaan kirjautumista ja käyttäjän tunnistusta varten
+    context: async ({ req }) => {
+        const auth = req ? req.headers.authorization : null
+        if (auth && auth.toLowerCase().startsWith('bearer ')) {
+            const decodedToken = jwt.verify(
+                auth.substring(7), JWT_SECRET
+            )
+            const currentUser = await User
+                .findById(decodedToken.id)
+            //.findById(decodedToken.id).populate('favoriteGenre')
+            return { currentUser }
+        }
+    }
 })
 
 server.listen().then(({ url }) => {
