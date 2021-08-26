@@ -154,7 +154,7 @@ type Mutation{
     addBook(
         title: String!
         published: Int!
-        author: String
+        author: String!
         genres: [String]        
     ): Book
 
@@ -465,7 +465,7 @@ const resolvers = {
     //erikseen, jotta kyselyt authorin osalta toimivat oikein
     Book: {
         author: async (root) => {
-            console.log('ROOT', (await Author.findOne({ _id: root.author })).name)
+            //console.log('ROOT', (await Author.findOne({ _id: root.author })).name)
             return {
                 name: (await Author.findOne({ _id: root.author })).name
             }
@@ -478,6 +478,7 @@ const resolvers = {
         //context tarvitaan, koska halutaan, että vain kirjautunut käyttäjä voi lisätä kirjan
         addBook: async (root, args, context) => {
 
+            console.log('TULIKO ADDBOOKIIN')
             //Tarkastamaan, onko käyttäjä kirjautunut
             const currentUser = context.currentUser
             console.log('CURRENT USER', currentUser)
@@ -623,6 +624,7 @@ const resolvers = {
                 })
         },
         login: async (root, args) => {
+            //console.log('TULEEKO LOGIN MUTAATIOLLE')
             const user = await User.findOne({ username: args.username })
 
             if (!user || args.password !== 'secret') {
