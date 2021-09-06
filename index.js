@@ -310,6 +310,8 @@ console.log('ADD BOOK', books.concat(bookYksi))
                         value}
         }
         97) Loggautuneen käyttäjän hakeminen
+            Token, joka on saatu kohdasta 96) eli loggautumisen yhteydessä.
+            Kirjoita token näin {"Authorization": "bearer <token tähän, joka saatu loggautumisen yhteydessä>"}
             query {
                     me{
                       username,
@@ -383,6 +385,7 @@ const resolvers = {
             //Haetaan hakua vastaava author kannasta
             const authorInQuestion = await Author.find({ name: args.author })
 
+            
             //Jos on annettu sekä authorin, että genren arvot niin tämä
             if (args.author && args.genre) {
                 //Haetaan kaikki Authorin kirjat
@@ -430,8 +433,8 @@ const resolvers = {
         },
         //Kirjautumista varten
         //HUOM! context
-        me: (root, args, context) => {
-            return context.currentUser
+        me: async (root, args, context) => {
+            return await context.currentUser
         }
 
 
