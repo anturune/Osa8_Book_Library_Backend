@@ -1,5 +1,13 @@
 //Apollo server käyttöön
 const { ApolloServer, gql } = require('apollo-server')
+
+//Subscriptioita varten
+const { PubSub } = require('apollo-server')
+//Tilausten yhteydessä kommunikaatio tapahtuu publish-subscribe-periaatteella käyttäen rajapinnan 
+//PubSub toteuttavaa olioa. Uuden kirjan lisäys julkaisee tiedon lisäyksestä kaikille muutokset 
+//tilanneille PubSubin metodilla publish
+const pubsub = new PubSub()
+
 //Mongoa varten
 const mongoose = require('mongoose')
 //Yksilöllistä Tokenia varten, kirjautumiseen
@@ -150,6 +158,11 @@ type Author {
       simplyAllBooks:[Book!]!
       me: User
 }
+
+type Subscription {
+    bookAdded: Book!
+  }
+
 type Mutation{
     addBook(
         title: String!
@@ -385,7 +398,7 @@ const resolvers = {
             //Haetaan hakua vastaava author kannasta
             const authorInQuestion = await Author.find({ name: args.author })
 
-            
+
             //Jos on annettu sekä authorin, että genren arvot niin tämä
             if (args.author && args.genre) {
                 //Haetaan kaikki Authorin kirjat
@@ -540,9 +553,14 @@ const resolvers = {
                     invalidArgs: args,
                 })
             }
+            //Subscriptiota varten, kun uusi kirja luodaan, palautetaan henkilön tiedot
+            //kaikille tilaajille.
+            pubsub.publish('BOOK_ADDED', { bookAdded: book })
+
             return book
 
         }
+
 
 
         //return book.save()
@@ -641,6 +659,13 @@ const resolvers = {
 
             return { value: jwt.sign(userForToken, JWT_SECRET) }
         }
+    },
+    //Subscription määrittely. Subscriptionin bookAdded resolveri rekisteröi tiedotteista 
+    //kiinnostuneet clientit palauttamalla niille sopivan iteraattoriolion.
+    Subscription: {
+        bookAdded: {
+            subscribe: () => pubsub.asyncIterator(['BOOK_ADDED'])
+        },
     }
 }
 
@@ -667,6 +692,7 @@ const server = new ApolloServer({
     }
 })
 
-server.listen().then(({ url }) => {
+server.listen().then(({ url, subscriptionsUrl }) => {
     console.log(`Server ready at ${url}`)
+    console.log(`Subscriptions ready at ${subscriptionsUrl}`)
 })
