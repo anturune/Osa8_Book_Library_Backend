@@ -1,3 +1,4 @@
+//Kirjan -skeema mongoa varten
 const mongoose = require('mongoose')
 
 const schema = new mongoose.Schema({

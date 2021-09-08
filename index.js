@@ -188,22 +188,7 @@ type Mutation{
 }
 
 `
-/*
-//tsekataan, että tulostuuko cmd:hen kirjat halutulla ehdolla
-//console.log('ALL BOOKS BY Author', books.filter(b => b.genres.find(g => g === 'refactoring')))
-//console.log('ALL BOOKS', books)
 
-const bookYksi = {
-    title: 'titteli',
-    published: 2008,
-    author: 'Atu Atunen',
-    id: "afa5b6f4-344d-11e9-a414-719c6709cf3e",
-    genres: ['refactoring']
-
-}
-
-console.log('ADD BOOK', books.concat(bookYksi))
-*/
 /*
 -------------ERILAISIA HAKUJA JOITA TÄLLÄ SKEEMALLA JA MÄÄRITTELYLLÄ VOIDAAN TEHDÄ:-----------------
         Kirjoita haut graphql käyttöliittymään http://localhost:4000/graphql:
@@ -378,20 +363,6 @@ const resolvers = {
         }
         ,
 
-        //Argumenttia hyödynnetään eli http://localhost:4000/graphql käyttöliittymässä
-        //voidaan hakea halutulla authorin nimellä authorin kaikki kirjat. 
-        //ks.yllä " allBooks(author: String!): [Book!]!"
-        //HUOM! Haku tehdään näin http://localhost:4000/graphql käyttöliittymässä
-        /*
-          Kirjailijan kirjat:
-            query {
-                allBooks(author: "Martin Fowler") {
-                title
-                }
-            }
-
-        */
-
 
         allBooks: async (root, args) => {
 
@@ -415,10 +386,9 @@ const resolvers = {
                         }
                     )
                 */
-                console.log('authorinKirjatGenreilla', authorinKirjatGenreilla)
+                //console.log('authorinKirjatGenreilla', authorinKirjatGenreilla)
                 return authorinKirjatGenreilla
-                //const authorsBook = books.filter(b => b.author === args.author)
-                //return authorsBook.filter(b => b.genres.find(g => g === args.genre))
+
             }
 
             //Jos annettu pelkästään authorin arvo, niin tämä
@@ -494,10 +464,9 @@ const resolvers = {
         //context tarvitaan, koska halutaan, että vain kirjautunut käyttäjä voi lisätä kirjan
         addBook: async (root, args, context) => {
 
-            console.log('TULIKO ADDBOOKIIN')
+            //console.log('TULIKO ADDBOOKIIN')
             //Tarkastamaan, onko käyttäjä kirjautunut
             const currentUser = context.currentUser
-            console.log('CURRENT USER', currentUser)
             if (!currentUser) {
                 throw new AuthenticationError("not authenticated")
             }
@@ -507,11 +476,6 @@ const resolvers = {
             //Käytetän "let" -tyyppiä, jotta voidaan vaihtaa arvoa
             let authorInQuestion = await Author.find({ name: args.author })
 
-            /*
-            console.log('SYÖTETTY AUTHORI', authorInQuestion)
-            console.log('SYÖTETTY AUTHORIN id', authorInQuestion[0])
-            console.log('SYÖTETTY AUTHORI ARGSISSA', args.author)
-            */
 
             //Jos authoria ei kannassa, niin luodaan uusi author ennen kirjan luomista
             if (authorInQuestion[0] === undefined) {
@@ -594,7 +558,7 @@ const resolvers = {
 
             //Tarkastamaan, onko käyttäjä kirjautunut
             const currentUser = context.currentUser
-            console.log('CURRENT USER', currentUser)
+            //console.log('CURRENT USER', currentUser)
             if (!currentUser) {
                 throw new AuthenticationError("not authenticated")
             }
@@ -603,17 +567,15 @@ const resolvers = {
             //Jos haettaisiin vain "find", niin tulisi arrayna
             const author = await Author.findOne({ name: args.name })
 
-            console.log('Tuliko editAuthoriin', args.name, author.born)
-            //const author = authors.find(a => a.name === args.name)
             if (!author) {
                 return null
             }
-            console.log('Lähtikö muuttamaan editAuthorissa setBornTo arvolla', args.setBornTo)
+            //console.log('Lähtikö muuttamaan editAuthorissa setBornTo arvolla', args.setBornTo)
             //HUOM! Skeemassa pitää olla "setBornTo", koska konsolesta syötetään sen nimisellä parametrilla
             //uusi syntymävuosi
             //Päivitetään syntymävuosi
             author.born = args.setBornTo
-            console.log('Editoituiko authori', author)
+            //console.log('Editoituiko authori', author)
             //const updatedAuthor = { ...author, born: args.setBornTo }
             //authors = authors.map(a => a.name === args.name ? updatedAuthor : a)
 
@@ -634,9 +596,8 @@ const resolvers = {
 
             //Luodaan uusi käyttäjä skeeman mukaisesti.
             //HUOM! "favoriteGenre" on pakollinen kenttä
-            console.log('USERIN TIEDOT', args.username, args.favoriteGenre)
+            //console.log('USERIN TIEDOT', args.username, args.favoriteGenre)
             const user = new User({ username: args.username, favoriteGenre: args.favoriteGenre })
-
             return user.save()
                 .catch(error => {
                     throw new UserInputError(error.message, {
@@ -686,7 +647,6 @@ const server = new ApolloServer({
             )
             const currentUser = await User
                 .findById(decodedToken.id)
-            //.findById(decodedToken.id).populate('favoriteGenre')
             return { currentUser }
         }
     }
